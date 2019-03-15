@@ -27,7 +27,7 @@ cd build/miniconda-3.6-4.5.4
 Copy miniconda installation script to working directory (and install):
 
 ```
-cp /lus/theta-fs0/projects/FRNN/rzamora/scripts/install_miniconda-3.6-4.5.4.sh .
+cp /lus/theta-fs0/projects/fusiondl_aesp/rzamora/scripts/install_miniconda-3.6-4.5.4.sh .
 ./install_miniconda-3.6-4.5.4.sh
 ```
 
@@ -68,11 +68,11 @@ python setup.py install
 
 ## Data Access
 
-Sample data and metadata is available in `/lus/theta-fs0/projects/FRNN/tigress/alexeys/signal_data` and `/lus/theta-fs0/projects/FRNN/tigress/alexeys/shot_lists`, respectively.  It is recommended that users create their own symbolic links to these directories. I recommend that you do this within a directory called `/lus/theta-fs0/projects/fusiondl_aesp/<your-alcf-username>/`. For example:
+Sample data and metadata is available in `/lus/theta-fs0/projects/fusiondl_aesp/FRNN/tigress/alexeys/signal_data` and `/lus/theta-fs0/projects/fusiondl_aesp/FRNN/tigress/alexeys/shot_lists`, respectively.  It is recommended that users create their own symbolic links to these directories. I recommend that you do this within a directory called `/lus/theta-fs0/projects/fusiondl_aesp/<your-alcf-username>/`. For example:
 
 ```
-ln -s /lus/theta-fs0/projects/FRNN/tigress/alexeys/shot_lists  /lus/theta-fs0/projects/fusiondl_aesp/<your-alcf-username>/shot_lists
-ln -s /lus/theta-fs0/projects/FRNN/tigress/alexeys/signal_data  /lus/theta-fs0/projects/fusiondl_aesp/<your-alcf-username>/signal_data
+ln -s /lus/theta-fs0/projects/fusiondl_aesp/FRNN/tigress/alexeys/shot_lists  /lus/theta-fs0/projects/fusiondl_aesp/<your-alcf-username>/shot_lists
+ln -s /lus/theta-fs0/projects/fusiondl_aesp/FRNN/tigress/alexeys/signal_data  /lus/theta-fs0/projects/fusiondl_aesp/<your-alcf-username>/signal_data
 ```
 
 For the examples included in `plasma-python`, there is a configuration file that specifies the root directory of the raw data. Change the `fs_path: '/tigress'` line in `examples/conf.yaml` to reflect the following:
@@ -97,7 +97,7 @@ Theta is KNL-based, and is **not** the best resource for processing many text fi
 
 ```
 cd ${FRNN_ROOT}/build/miniconda-3.6-4.5.4/plasma-python/examples
-cp /lus/theta-fs0/projects/FRNN/rzamora/scripts/submit_guarantee_preprocessed.sh .
+cp /lus/theta-fs0/projects/fusiondl_aesp/FRNN/rzamora/scripts/submit_guarantee_preprocessed.sh .
 ```
 
 Modify the paths defined in `submit_guarantee_preprocessed.sh` to match your environment.
@@ -125,7 +125,7 @@ ssh <alcf-username>@cooley.alcf.anl.gov
 Copy my `cooley_preprocess` example directory to whatever directory you choose to work in:
 
 ```
-cp /lus/theta-fs0/projects/FRNN/rzamora/scripts/cooley_preprocess .
+cp /lus/theta-fs0/projects/fusiondl_aesp/FRNN/rzamora/scripts/cooley_preprocess .
 cd cooley_preprocess
 ```
 
