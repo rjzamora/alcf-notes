@@ -14,6 +14,8 @@ export FRNN_ROOT=<desired-root-directory>
 cd $FRNN_ROOT
 ```
 
+*Personal Note: Using FRNN_ROOT=/home/zamora/ESP*
+
 Create a simple directory structure allowing experimental *builds* of the `plasma-python` python code/library:
 
 ```
@@ -27,7 +29,7 @@ cd build/miniconda-3.6-4.5.4
 Copy miniconda installation script to working directory (and install):
 
 ```
-cp /lus/theta-fs0/projects/fusiondl_aesp/rzamora/scripts/install_miniconda-3.6-4.5.4.sh .
+cp /lus/theta-fs0/projects/fusiondl_aesp/FRNN/rzamora/scripts/install_miniconda-3.6-4.5.4.sh .
 ./install_miniconda-3.6-4.5.4.sh
 ```
 
@@ -54,7 +56,7 @@ export PATH=${FRNN_ROOT}/build/miniconda-3.6-4.5.4/miniconda3/4.5.4/bin:$PATH
 export PYTHONPATH=${FRNN_ROOT}/build/miniconda-3.6-4.5.4/miniconda3/4.5.4/lib/python3.6/site-packages/:$PYTHONPATH
 ```
 
-*Personal Note: Using `export FRNN_ROOT=/home/zamora/ESP/FRNN_project`*
+*Personal Note: Using `export FRNN_ROOT=/lus/theta-fs0/projects/fusiondl_aesp/zamora/FRNN_project`*
 
 If the environment is set up correctly, installation of `plasma-python` is straightforward:
 
@@ -68,7 +70,7 @@ python setup.py install
 
 ## Data Access
 
-Sample data and metadata is available in `/lus/theta-fs0/projects/fusiondl_aesp/FRNN/tigress/alexeys/signal_data` and `/lus/theta-fs0/projects/fusiondl_aesp/FRNN/tigress/alexeys/shot_lists`, respectively.  It is recommended that users create their own symbolic links to these directories. I recommend that you do this within a directory called `/lus/theta-fs0/projects/fusiondl_aesp/<your-alcf-username>/`. For example:
+Sample data and metadata is available in `/lus/theta-fs0/projects/FRNN/tigress/alexeys/signal_data` and `/lus/theta-fs0/projects/FRNN/tigress/alexeys/shot_lists`, respectively.  It is recommended that users create their own symbolic links to these directories. I recommend that you do this within a directory called `/lus/theta-fs0/projects/fusiondl_aesp/<your-alcf-username>/`. For example:
 
 ```
 ln -s /lus/theta-fs0/projects/fusiondl_aesp/FRNN/tigress/alexeys/shot_lists  /lus/theta-fs0/projects/fusiondl_aesp/<your-alcf-username>/shot_lists
@@ -125,7 +127,7 @@ ssh <alcf-username>@cooley.alcf.anl.gov
 Copy my `cooley_preprocess` example directory to whatever directory you choose to work in:
 
 ```
-cp /lus/theta-fs0/projects/fusiondl_aesp/FRNN/rzamora/scripts/cooley_preprocess .
+cp -r /lus/theta-fs0/projects/fusiondl_aesp/FRNN/rzamora/scripts/cooley_preprocess .
 cd cooley_preprocess
 ```
 
@@ -144,6 +146,218 @@ Omitted 5523 shots of 5523 total.
 WARNING: All shots were omitted, please ensure raw data is complete and available at /lus/theta-fs0/projects/fusiondl_aesp/zamora/signal_data/.
 4327 1196
 ```
+
+
+# Notes on Revisiting Pre-Processes
+
+## Preprocessing Information
+
+To understand what might be going wrong with the preprocessing step, let's investigate what the code is actually doing.
+
+**Step 1** Call `guarentee_preprocessed( conf )`, which is defined in `plasma/preprocessor/preprocess.py`. This function first initializes a `Preprocessor()` object (whose class definition is in the same file), and then checks if the preprocessing was already done (by looking for a file). The preprocessor object is called `pp`.
+
+**Step 2** Assuming preprocessing is needed, we call `pp.clean_shot_lists()`, which loops through each file in the `shot_lists` directory and calls `self.clean_shot_list()` (not plural) for each text-file item. I do not believe this function is doing any thing when I run it, because all the shot list files have been "cleaned." The cleaning of a shot-list file just means the data is corrected to have two columns, and the file is renamed (to have "clear" in the name).
+
+**Step 3** We call `pp.preprocess_all()`, which parses some of the config file, and ultimately calls `self.preprocess_from_files(shot_files_all,use_shots)` (where I believe `shot_files_all` is the output directory, and `use_shots` is the number of shots to use).
+
+**Step 4** The `preprocess_from_files()` function is used to do the actual preprocessing. It does this by creating a multiprocessing pool, and mapping the processes to the `self.preprocess_single_file` function (note that the code for `ShotList` class is in `plasma/primitives/shots.py`, and the preprocessing code is still in `plasma/preprocessor/preprocess.py`).
+
+**Important:** It looks like the code uses the path definitions in `data/shot_lists/signals.py` to define the location/path of signal data. I believe that some of the signal data is missing, which is causing every "shot" to be labeled as incomplete (and consequently thrown out).
+
+### Possible Issues
+
+From the preprocessing output, it is clear that the *Signal Radiated Power Core* data was not downloaded correctly. According to the `data/shot_lists/signals.py` file, the data *should* be in `/lus/theta-fs0/projects/fusiondl_aesp/<alcf-user-name>/signal_data/jet/ppf/bolo/kb5h/channel14`. However, the only subdirectory of `~/jet/ppf/` is `~/jet/ppf/efit`
+
+Another possible issue is that the `data/shot_lists/signals.py` file specifies the **name** of the directory containing the *Radiated Power* data incorrectly (*I THINK*). Instead of the following line:
+
+`pradtot = Signal("Radiated Power",['jpf/db/b5r-ptot>out'],[jet])`
+
+We might need this:
+
+`pradtot = Signal("Radiated Power",['jpf/db/b5r-ptot\>out'],[jet])`
+
+The issue has to do with the `>` character in the directory name (without the proper `\` escape character, python may be looking in the wrong path). **NOTE: I need to confirm that there is actually an issue with the way the code is actually using the string.**
+
+
+## Singularity/Docker Notes
+
+Recall that the data preprocessing step was PAINFULLY slow on Theta, and so I decided to use Cooley. To simplify the process of using Cooley, I created a Docker image with the necessary environment. **Personal Note:** I performed this work on my local machine (Mac) in `/Users/rzamora/container-recipes`.
+
+
+In order to use a Docker image within a Singularity container (required on ALCF machines), it is useful to build the image on your local machine and push it to "Docker Hub":
+
+
+**Step 1:** Install Docker if you don't have it. [Docker-Mac](https://www.docker.com/docker-mac) works well for Mac.
+
+**Step 2:** Build a Docker image using the recipe discussed below.
+
+```
+export IMAGENAME="test_image"
+export RECIPENAME="Docker.centos7-cuda-tf1.12.0"
+docker build -t $IMAGENAME -f $RECIPENAME .
+```
+
+You can check that the image is functional by starting an interactive shell session, and checking that the necessary python modules are available. For example (using `-it` for an interactive session):
+
+```
+docker run --rm -it -v $PWD:/tmp -w /tmp $IMAGENAME:latest bash
+# python -c "import keras; import plasma; print(plasma.__file__)"
+```
+
+Note that the `plasma-python` source code will be located in `/root/plasma-python/` for the recipe described below.
+
+**Step 3:** Push the image to [Docker Hub](https://hub.docker.com/).
+
+Using your docker-hub username:
+
+```
+docker login --username=<username>
+```
+
+Then, "tag" the image using the `IMAGE ID` value displayed with `docker image ls`:
+
+```
+docker tag <IMAGE-ID> <username>/<image-name>:<label>
+```
+
+Here, `<label>` is something like "latest".  To finally push the image to [Docker Hub](https://hub.docker.com/):
+
+```
+docker push <username>/<image-name>
+```
+
+### Docker Recipe
+
+The actual content of the docker recipe is mostly borrowed from an example on [GitHub](https://github.com/scieule/golden-heart/blob/master/Dockerfile):
+
+```
+FROM nvidia/cuda:9.1-cudnn7-devel-centos7
+
+# Setup environment:
+SHELL ["/bin/bash", "-c"]
+ENV LANG en_US.UTF-8
+ENV LANGUAGE en_US.UTF-8
+ENV LC_ALL en_US.UTF-8
+ENV CUDA_DEVICE_ORDER PCI_BUS_ID
+ENV LD_LIBRARY_PATH ${LD_LIBRARY_PATH}:/usr/local/cuda/extras/CUPTI/lib64
+
+RUN yum update -y
+
+RUN yum groupinstall -y "Development tools"
+
+RUN yum install -y  wget \
+                    unzip \
+                    screen tmux \
+                    ruby \
+                    vim \
+                    bc \
+                    man \
+                    ncurses-devel \
+                    zlib-devel \
+                    curl-devel \
+                    openssl-devel \
+                    which
+
+RUN yum install -y qt5*devel gtk2-devel
+
+RUN yum install -y  blas-devel \
+                    lapack-devel \
+                    atlas-devel \
+                    gcc-gfortran \
+                    tbb-devel \
+                    eigen3-devel \
+                    jasper-devel \
+                    libpng-devel \
+                    libtiff-devel \
+                    openexr-devel \
+                    libwebp-devel \
+                    libv4l-devel \
+                    libdc1394-devel \
+                    libv4l-devel \
+                    gstreamer-plugins-base-devel
+
+# C/C++ CMake Python
+RUN yum install -y  centos-release-scl && \
+    yum install -y  devtoolset-7-gcc* \
+                    devtoolset-7-valgrind \
+                    devtoolset-7-gdb \
+                    devtoolset-7-elfutils \
+                    clang \
+                    llvm-toolset-7 \
+                    llvm-toolset-7-cmake \
+                    rh-python36-python-devel \
+                    rh-python36-python-pip \
+                    rh-git29-git \
+                    devtoolset-7-make
+
+RUN echo "source scl_source enable devtoolset-7" >> /etc/bashrc
+RUN echo "source scl_source enable llvm-toolset-7" >> /etc/bashrc
+RUN echo "source scl_source enable rh-python36" >> /etc/bashrc
+RUN echo "source scl_source enable rh-git29" >> /etc/bashrc
+
+# Python libs & jupyter
+
+RUN source /etc/bashrc; pip3 install --upgrade pip
+RUN source /etc/bashrc; pip3 install numpy scipy matplotlib pandas \
+                                    tensorflow-gpu keras h5py tables \
+                                    scikit-image scikit-learn Pillow opencv-python \
+                                    jsonschema jinja2 tornado pyzmq ipython jupyter notebook
+
+# Install MPICH
+RUN  cd /root && wget -q http://www.mpich.org/static/downloads/3.2.1/mpich-3.2.1.tar.gz \
+  && tar xf mpich-3.2.1.tar.gz \
+  && rm mpich-3.2.1.tar.gz \
+  && cd mpich-3.2.1 \
+  && source /etc/bashrc; ./configure --prefix=/usr/local/mpich/install --disable-wrapper-rpath \
+  && make -j 4 install \
+  && cd .. \
+  && rm -rf mpich-3.2.1
+
+ENV PATH ${PATH}:/usr/local/mpich/install/bin
+ENV LD_LIBRARY_PATH ${LD_LIBRARY_PATH}:/usr/local/mpich/install/lib
+RUN env | sort
+
+# Install plasma-python (https://github.com/PPPLDeepLearning/plasma-python)
+# For 'pip'-based install: pip --no-cache-dir --disable-pip-version-check install -i https://testpypi.python.org/pypi plasma
+RUN cd /root && git clone https://github.com/PPPLDeepLearning/plasma-python \
+  && cd plasma-python \
+  && source /etc/bashrc; python setup.py install \
+  && cd ..
+
+# nccl2
+RUN cd /root && git clone https://github.com/NVIDIA/nccl.git \
+  && cd nccl \
+  && make -j src.build \
+  && make pkg.redhat.build \
+  && rpm -i build/pkg/rpm/x86_64/libnccl*
+
+# pip-install mpi4py
+RUN source /etc/bashrc; pip3 install mpi4py
+
+RUN yum install -y libffi libffi-devel
+
+RUN source /etc/bashrc; pip3 install tensorflow
+
+# Workaround to build horovod without needing cuda libraries available:
+# temporary add stub drivers to ld.so.cache
+RUN ldconfig /usr/local/cuda/lib64/stubs \
+  && source /etc/bashrc; HOROVOD_GPU_ALLREDUCE=NCCL HOROVOD_WITH_TENSORFLOW=1 HOROVOD_NCCL_HOME=/nccl/build/ pip3 --no-cache-dir install horovod \
+  && ldconfig
+
+ENV NCCL_P2P_DISABLE 1
+```
+
+### Converting Docker to Singularity
+
+Needed to build a singularity image for Cooley... Used vagrant:
+
+```
+cd ~/vm-singularity/
+vagrant up
+vagrant ssh
+sudo singularity build centos7-cuda-tf1.12.0-plasma.simg docker://rjzamora/centos7-cuda-tf1.12.0.dimg:latest
+```
+
 
 
 
